@@ -22,6 +22,7 @@ const fragmentShaderWithCamera = `
   uniform float iDepthHeight;
   uniform float iDepthStatic;
   uniform float iDepthFocus;
+  uniform float iZoom;
   uniform float iDepthZoom;
   uniform float iDepthIsometric;
   uniform float iDepthDolly;
@@ -93,13 +94,56 @@ Camera iInitCamera(vec2 uv) {
 }
 
 Camera iProjectCamera(Camera cam) {
-    // Implement camera projection logic here
-    // This is a placeholder and should be replaced with actual projection code
+    // Apply zoom
+    cam.zoom = (iZoom);
+
+    // Calculate the aspect ratio of the viewport
+    float viewportAspect = iResolution.x / iResolution.y;
+
+    // Apply isometric projection if enabled
+    if (cam.isometric || iDepthIsometric > 0.5) {
+        cam.direction = normalize(vec3(-1.0, -1.0, -1.0));
+        cam.up = vec3(0.0, 1.0, 0.0);
+        cam.right = cross(cam.direction, cam.up);
+    } else {
+        // Perspective projection
+        float fovFactor = tan(cam.fov * 0.5) / cam.zoom;
+        vec2 uv = (gl_FragCoord.xy / iResolution.xy) * 2.0 - 1.0;
+
+        // Aspect ratio correction
+        if (iAspectRatio <= 1.0) {
+            uv.y /= viewportAspect / iAspectRatio;
+        } else {
+            uv.x *= viewportAspect / iAspectRatio;
+        }
+
+        cam.direction = normalize(vec3(uv * fovFactor, -1.0));
+        cam.up = vec3(0.0, 1.0, 0.0);
+        cam.right = cross(cam.direction, cam.up);
+    }
+
+    // Apply dolly zoom
+    cam.origin.z += iDepthDolly;
+
+    // Apply camera offset
+    cam.origin.xy += iDepthOffset;
+
+    // Calculate the point where the camera ray intersects the image plane
+    float t = -cam.origin.z / cam.direction.z;
+    cam.plane_point = cam.origin + t * cam.direction;
+
+    // Check if the intersection point is within bounds
+    cam.out_of_bounds = abs(cam.plane_point.x) > 1.0 || abs(cam.plane_point.y) > 1.0;
+
+    // Calculate UV coordinates on the image plane
+    cam.gluv = (cam.plane_point.xy + 1.0) * 0.5;
+
     return cam;
 }
 
 void main() {
     vec2 gluv = vUv;
+    
     Camera iCamera = iInitCamera(gluv);
 
     // Update iCamera origin based on mouse input
@@ -173,8 +217,8 @@ void main() {
         float min_quality = max_dimension * 0.05;
         float quality = mix(min_quality, max_quality, iQuality);
 
-        // Optimization: We'll do two swipes, one that is of lower quality (probe) just to find the
-        // nearest intersection with the depth map, and then flip direction, at a finer (quality)
+        // Optimization: Two swipes, one lower quality (probe) to find
+        // nearest intersection with depth map, then flip direction, at finer (quality)
         float probe = mix(50.0, 100.0, iQuality);
         bool swipe = true;
         float i = 1.0;
@@ -260,11 +304,12 @@ const DepthFlowMaterial = new THREE.ShaderMaterial({
         iDepthHeight: { value: 0.35 },
         iDepthStatic: { value: 0 },
         iDepthFocus: { value: 10 },
+        iZoom: { value: 0.5 },
         iFocusCenter: { value: new THREE.Vector2(0, 0) },
         iDepthZoom: { value: 1.0 },
         iDepthIsometric: { value: 0 },
         iDepthDolly: { value: 0 },
-        iDepthInvert: { value: 0.5 },
+        iDepthInvert: { value: 0.39 },
         iDepthCenter: { value: new THREE.Vector2(0.5, 0.5) },
         iDepthOrigin: { value: new THREE.Vector2(0.5, 0.5) },
         iQuality: { value: 1.0 },
@@ -283,7 +328,7 @@ const DepthFlowMaterial = new THREE.ShaderMaterial({
         iCameraPosition: { value: new THREE.Vector3(0, 0, 1) },
         iAspectRatio: { value: 1.0 },
         iHeight: { value: 0.0 },
-        iZoomFactor: { value: 1.25 },
+        iZoomFactor: { value: 1 },
         iViewDepthMap: { value: false },
         iDepthMapOpacity: { value: 1 },
     },
@@ -315,6 +360,7 @@ function DepthFlowScene({ config, imageData, depthData, mouseEnabled, viewDepthM
                     const aspect = img.width / img.height;
                     setImageAspect(aspect);
                     mat.uniforms.iAspectRatio.value = aspect;
+                    console.log(aspect);
                 };
                 img.src = e.target.result;
             };
@@ -356,10 +402,10 @@ function DepthFlowScene({ config, imageData, depthData, mouseEnabled, viewDepthM
             depthTexture.needsUpdate = true;
             mat.uniforms.iDepth.value = depthTexture;
         }
-        mat.uniforms.iZoomFactor = { value: 1.25 };
+        mat.uniforms.iZoomFactor = { value: 1 };
 
         return mat;
-    }, [imageData, depthData]);
+    }, [imageData, depthData, imageAspect]);
 
     useEffect(() => {
         const handleMouseMove = (event) => {
@@ -386,7 +432,8 @@ function DepthFlowScene({ config, imageData, depthData, mouseEnabled, viewDepthM
             material.uniforms.iDepthStatic.value = config.static;
             material.uniforms.iDepthFocus.value = config.focus;
             material.uniforms.iFocusCenter.value.set(config.focusCenterX, config.focusCenterY);
-            material.uniforms.iDepthZoom.value = config.zoom;
+            material.uniforms.iZoom.value = config.zoom;
+            material.uniforms.iDepthZoom.value = config.depthZoom;
             material.uniforms.iDepthIsometric.value = config.isometric;
             material.uniforms.iDepthDolly.value = config.dolly;
             material.uniforms.iDepthInvert.value = config.invert;
@@ -405,19 +452,19 @@ function DepthFlowScene({ config, imageData, depthData, mouseEnabled, viewDepthM
             material.uniforms.iVignetteDecay.value = config.vignetteDecay;
             material.uniforms.iDepthOffset.value.set(config.depthOffsetX, config.depthOffsetY);
             material.uniforms.iDepthMirror.value = config.depthMirror > 0.5;
-            material.uniforms.iAspectRatio.value = config.aspectRatio;
             material.uniforms.iViewDepthMap.value = viewDepthMap;
             material.uniforms.iDepthMapOpacity.value = depthMapOpacity;
+            material.uniforms.iCameraPosition.value.set(0, 0, 1);
 
             if (mouseEnabled) {
-                // Update iCameraPosition based on mouse movement
-                const maxOffset = 0.1;
-                const x = mousePosition.x * maxOffset;
-                const y = mousePosition.y * maxOffset;
-                material.uniforms.iCameraPosition.value.set(x, y, 1);
+                // Update iDepthCenter based on mouse movement
+                const maxOffset = 0.6;
+                const x = mousePosition.x * maxOffset + 0.5;
+                const y = mousePosition.y * maxOffset + 0.5;
+                material.uniforms.iDepthOrigin.value.set(x, y);
             } else {
-                // Reset camera position when mouse is disabled
-                material.uniforms.iCameraPosition.value.set(0, 0, 1);
+                // Reset iDepthCenter position when mouse is disabled
+                material.uniforms.iDepthOrigin.value.set(0, 0);
             }
         }
     });
@@ -429,11 +476,11 @@ function DepthFlowScene({ config, imageData, depthData, mouseEnabled, viewDepthM
 
     if (canvasAspect > imageAspect) {
         // Canvas is wider than the image
-        planeWidth = 5;  // Increase this value to zoom in
+        planeWidth = 6;  // Increase this value to zoom in
         planeHeight = planeWidth / imageAspect;
     } else {
         // Canvas is taller than the image
-        planeHeight = 5;  // Increase this value to zoom in
+        planeHeight = 6;  // Increase this value to zoom in
         planeWidth = planeHeight * imageAspect;
     }
 

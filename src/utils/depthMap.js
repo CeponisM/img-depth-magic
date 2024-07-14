@@ -21,11 +21,11 @@ export const generateDepthMap = async (imageUrl) => {
   }
 
   const depthMapData = await response.json();
-  
+
   // Find min and max without flattening the entire array
   let minDepth = Infinity;
   let maxDepth = -Infinity;
-  
+
   for (let i = 0; i < depthMapData.length; i++) {
     for (let j = 0; j < depthMapData[i].length; j++) {
       const value = depthMapData[i][j];

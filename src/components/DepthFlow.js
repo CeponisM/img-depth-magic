@@ -7,22 +7,22 @@ import { generateDepthMap } from '../utils/depthMap';
 
 function DepthFlow() {
   const [config, setConfig] = useState({
-    height: 0.35,
+    height: 0.63,
     static: 0,
     focus: 10,
     focusCenterX: 0,
     focusCenterY: 0,
-    zoom: 1.0,
+    zoom: 0.5,
     isometric: 0,
     dolly: 0,
-    invert: 0.5,
+    invert: 0.39,
     depthHeight: 0.35,
     depthStatic: 0,
     depthFocus: 10,
     depthZoom: 1.0,
     depthIsometric: 0,
     depthDolly: 0,
-    depthInvert: 0.5,
+    depthInvert: 0.39,
     depthCenterX: 0.5,
     depthCenterY: 0.5,
     depthOriginX: 0.5,
@@ -42,7 +42,7 @@ function DepthFlow() {
     depthOffsetY: 0,
     depthMirror: 0,
     aspectRatio: 1,
-    depthMapOverlay: 0,
+    viewDepthMap: 0,
     depthMapOpacity: 1,
   });
   const [imageData, setImageData] = useState(null);

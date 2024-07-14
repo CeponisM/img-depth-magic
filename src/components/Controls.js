@@ -59,13 +59,15 @@ function Controls({
   };
 
   const controlConfig = {
-    height: { min: 0, max: 1, step: 0.01, defaultValue: 0.35 },
+    height: { min: 0, max: 1, step: 0.01, defaultValue: 0.63 },
     static: { min: 0, max: 1, step: 0.01, defaultValue: 0 },
     focus: { min: 0.5, max: 100, step: 0.01, defaultValue: 10.0 },
-    zoom: { min: 0.5, max: 2, step: 0.01, defaultValue: 1.0 },
+    zoom: { min: -2, max: 2, step: 0.01, defaultValue: 0.5 },
     isometric: { min: 0, max: 1, step: 0.01, defaultValue: 0 },
     dolly: { min: -1, max: 1, step: 0.01, defaultValue: 0 },
-    invert: { min: 0, max: 1, step: 0.01, defaultValue: 0.5 },
+    invert: { min: 0, max: 1, step: 0.01, defaultValue: 0.39 },
+    focusCenterX: { min: -1, max: 1, step: 0.01, defaultValue: 0 },
+    focusCenterY: { min: -1, max: 1, step: 0.01, defaultValue: 0 },
     depthCenterX: { min: -1, max: 1, step: 0.01, defaultValue: 0.5 },
     depthCenterY: { min: -1, max: 1, step: 0.01, defaultValue: 0.5 },
     depthOriginX: { min: -1, max: 1, step: 0.01, defaultValue: 0.5 },
