@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useEffect, useState } from 'react';
+import React, { useRef, useMemo, useEffect, useState, useCallback } from 'react';
 import { useFrame, useThree, extend } from '@react-three/fiber';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import * as THREE from 'three';
@@ -188,7 +188,7 @@ void main() {
     sigma += focusOffset * iDepthHeight;
 
     // The vector from Lambda to the camera's projection on the XY plane
-    vec2 displacement = (iCamera.origin.xy - lambda) + iDepthOrigin + focusOffset * iDepthHeight;
+    vec2 displacement = (iCamera.origin.xy - lambda) + iDepthOrigin * iDepthHeight;
     vec2 walk = normalize(displacement);
 
     // Angle between the Ray's origin and the XY plane
@@ -301,12 +301,12 @@ const DepthFlowMaterial = new THREE.ShaderMaterial({
         iResolution: { value: new THREE.Vector2() },
         iImage: { value: null },
         iDepth: { value: null },
-        iDepthHeight: { value: 0.35 },
+        iDepthHeight: { value: 1.0 },
         iDepthStatic: { value: 0 },
         iDepthFocus: { value: 10 },
         iZoom: { value: 0.5 },
         iFocusCenter: { value: new THREE.Vector2(0, 0) },
-        iDepthZoom: { value: 1.0 },
+        iDepthZoom: { value: 100 },
         iDepthIsometric: { value: 0 },
         iDepthDolly: { value: 0 },
         iDepthInvert: { value: 0.39 },
@@ -338,58 +338,61 @@ const DepthFlowMaterial = new THREE.ShaderMaterial({
 
 function DepthFlowScene({ config, imageData, depthData, mouseEnabled, viewDepthMap, depthMapOpacity }) {
     const mesh = useRef();
-    const { size, camera } = useThree();
+    const { size } = useThree();
     const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
     const [imageAspect, setImageAspect] = useState(1);
 
     const material = useMemo(() => {
         const mat = DepthFlowMaterial.clone();
+        return mat;
+    }, []);
 
-        // Load image texture
-        if (imageData && imageData.file) {
+    const loadTexture = useCallback((file) => {
+        return new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = (e) => {
                 const img = new Image();
                 img.onload = () => {
                     const texture = new THREE.Texture(img);
                     texture.needsUpdate = true;
-                    mat.uniforms.iImage.value = texture;
-                    mat.needsUpdate = true;
-
-                    // Set image aspect ratio
-                    const aspect = img.width / img.height;
-                    setImageAspect(aspect);
-                    mat.uniforms.iAspectRatio.value = aspect;
-                    console.log(aspect);
+                    resolve({ texture, aspect: img.width / img.height });
                 };
                 img.src = e.target.result;
             };
-            reader.readAsDataURL(imageData.file);
+            reader.readAsDataURL(file);
+        });
+    }, []);
+
+    useEffect(() => {
+        if (imageData && imageData.file) {
+            loadTexture(imageData.file).then(({ texture, aspect }) => {
+                material.uniforms.iImage.value = texture;
+                material.needsUpdate = true;
+                setImageAspect(aspect);
+                material.uniforms.iAspectRatio.value = aspect;
+            });
         }
+    }, [imageData, material, loadTexture]);
 
-        // Create depth texture
+    useEffect(() => {
         if (depthData && depthData.depthArray && depthData.shape) {
-            const width = depthData.shape[1];
-            const height = depthData.shape[0];
-
-            // Flatten the depth array and normalize values to [0, 1]
+            const [height, width] = depthData.shape;
             const flatDepthArray = new Float32Array(width * height);
             let minDepth = Infinity;
             let maxDepth = -Infinity;
 
-            for (let i = 0; i < depthData.depthArray.length; i++) {
-                for (let j = 0; j < depthData.depthArray[i].length; j++) {
-                    const flippedI = depthData.depthArray.length - 1 - i;
-                    const value = depthData.depthArray[flippedI][j];
+            for (let i = 0; i < height; i++) {
+                for (let j = 0; j < width; j++) {
+                    const value = depthData.depthArray[height - 1 - i][j];
                     minDepth = Math.min(minDepth, value);
                     maxDepth = Math.max(maxDepth, value);
                     flatDepthArray[i * width + j] = value;
                 }
             }
 
-            // Normalize the depth values
+            const range = maxDepth - minDepth;
             for (let i = 0; i < flatDepthArray.length; i++) {
-                flatDepthArray[i] = (flatDepthArray[i] - minDepth) / (maxDepth - minDepth);
+                flatDepthArray[i] = (flatDepthArray[i] - minDepth) / range;
             }
 
             const depthTexture = new THREE.DataTexture(
@@ -400,12 +403,9 @@ function DepthFlowScene({ config, imageData, depthData, mouseEnabled, viewDepthM
                 THREE.FloatType
             );
             depthTexture.needsUpdate = true;
-            mat.uniforms.iDepth.value = depthTexture;
+            material.uniforms.iDepth.value = depthTexture;
         }
-        mat.uniforms.iZoomFactor = { value: 1 };
-
-        return mat;
-    }, [imageData, depthData, imageAspect]);
+    }, [depthData, material]);
 
     useEffect(() => {
         const handleMouseMove = (event) => {
@@ -416,14 +416,12 @@ function DepthFlowScene({ config, imageData, depthData, mouseEnabled, viewDepthM
         };
 
         window.addEventListener('mousemove', handleMouseMove);
-
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-        };
+        return () => window.removeEventListener('mousemove', handleMouseMove);
     }, []);
 
     useFrame((state) => {
         if (mesh.current) {
+            const uniforms = material.uniforms;
             material.uniforms.iTime.value = state.clock.elapsedTime;
             material.uniforms.iResolution.value.set(size.width, size.height);
 
@@ -457,14 +455,13 @@ function DepthFlowScene({ config, imageData, depthData, mouseEnabled, viewDepthM
             material.uniforms.iCameraPosition.value.set(0, 0, 1);
 
             if (mouseEnabled) {
-                // Update iDepthCenter based on mouse movement
                 const maxOffset = 0.6;
-                const x = mousePosition.x * maxOffset + 0.5;
-                const y = mousePosition.y * maxOffset + 0.5;
-                material.uniforms.iDepthOrigin.value.set(x, y);
+                uniforms.iDepthOrigin.value.set(
+                    mousePosition.x * maxOffset + 0.5,
+                    mousePosition.y * maxOffset + 0.5
+                );
             } else {
-                // Reset iDepthCenter position when mouse is disabled
-                material.uniforms.iDepthOrigin.value.set(0, 0);
+                uniforms.iDepthOrigin.value.set(0.5, 0.5);
             }
         }
     });
@@ -472,21 +469,13 @@ function DepthFlowScene({ config, imageData, depthData, mouseEnabled, viewDepthM
     // Calculate the size of the plane to fit the Three.js canvas
     const { width, height } = size;
     const canvasAspect = width / height;
-    let planeWidth, planeHeight;
-
-    if (canvasAspect > imageAspect) {
-        // Canvas is wider than the image
-        planeWidth = 6;  // Increase this value to zoom in
-        planeHeight = planeWidth / imageAspect;
-    } else {
-        // Canvas is taller than the image
-        planeHeight = 6;  // Increase this value to zoom in
-        planeWidth = planeHeight * imageAspect;
-    }
+    const planeSize = canvasAspect > imageAspect
+        ? [6, 6 / imageAspect]
+        : [6 * imageAspect, 6];
 
     return (
         <mesh ref={mesh}>
-            <planeGeometry args={[planeWidth, planeHeight]} />
+            <planeGeometry args={planeSize} />
             <primitive object={material} attach="material" />
         </mesh>
     );
