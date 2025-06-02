@@ -1,6 +1,6 @@
 import { auth } from '../firebase';
 
-const API_URL = 'http://209.122.95.149';
+const API_URL = process.env.REACT_APP_API_URL;
 
 const apiRequest = async (url, options) => {
   try {
@@ -22,7 +22,11 @@ const apiRequest = async (url, options) => {
   }
 };
 
-export const generateDepthMap = async (imageUrl) => {
+export async function generateDepthMap(imageUrl) {
+  if (!API_URL) {
+    throw new Error('API_URL is not defined in environment variables');
+  }
+  
   const user = auth.currentUser;
   if (!user) {
     throw new Error('User not authenticated');

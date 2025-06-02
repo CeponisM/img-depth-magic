@@ -1,27 +1,38 @@
-import React, { useState, Suspense, useCallback } from 'react';
+import React, { useReducer, useCallback, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import styled, { keyframes } from 'styled-components';
+import PropTypes from 'prop-types';
 import DepthFlowScene from './DepthFlowScene';
 import Controls from './Controls';
 import FileUpload from './FileUpload';
 import { generateDepthMap } from '../utils/depthMap';
+import { configReducer, initialConfig } from '../utils/configReducer';
 
+// Animation for fade-in effect
 const fadeIn = keyframes`
   from { opacity: 0; }
   to { opacity: 1; }
 `;
 
+// Styled components
 const DepthFlowContainer = styled.div`
   display: flex;
   flex-direction: column;
   height: 100vh;
   background-color: #f0f0f0;
   animation: ${fadeIn} 0.5s ease-out;
+  overflow: hidden;
 `;
 
 const CanvasContainer = styled.div`
   flex: 1;
   position: relative;
+  width: 100%;
+  max-width: 100vw;
+
+  @media (max-width: 768px) {
+    height: 50vh; /* Adjust for smaller screens */
+  }
 `;
 
 const StyledCanvas = styled(Canvas)`
@@ -42,6 +53,22 @@ const LoadingOverlay = styled.div`
   color: white;
   font-size: 1.5rem;
   z-index: 10;
+  transition: opacity 0.3s ease;
+`;
+
+const ErrorMessage = styled.div`
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #d32f2f;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  z-index: 11;
+  font-size: 1rem;
+  max-width: 90%;
+  text-align: center;
 `;
 
 const ControlsContainer = styled.div`
@@ -53,71 +80,45 @@ const ControlsContainer = styled.div`
 `;
 
 function DepthFlow() {
-  const [config, setConfig] = useState({
-    height: 1.0,
-    static: 0,
-    focus: 10,
-    focusCenterX: 0,
-    focusCenterY: 0,
-    zoom: 0.5,
-    isometric: 0,
-    dolly: 0,
-    invert: 0.39,
-    depthHeight: 0.35,
-    depthStatic: 0,
-    depthFocus: 10,
-    depthZoom: 1.0,
-    depthIsometric: 0,
-    depthDolly: 0,
-    depthInvert: 0.39,
-    depthCenterX: 0.5,
-    depthCenterY: 0.5,
-    depthOriginX: 0.5,
-    depthOriginY: 0.5,
-    quality: 100,
-    dofEnable: 0,
-    dofIntensity: 0.1,
-    dofStart: 0,
-    dofEnd: 1,
-    dofExponent: 1,
-    dofDirections: 8,
-    dofQuality: 4,
-    vignetteEnable: 0,
-    vignetteIntensity: 1,
-    vignetteDecay: 1.5,
-    depthOffsetX: 0,
-    depthOffsetY: 0,
-    depthMirror: 0,
-    aspectRatio: 1,
-    viewDepthMap: 0,
-    depthMapOpacity: 1,
-  });
-  const [imageData, setImageData] = useState(null);
-  const [depthData, setDepthData] = useState(null);
-  const [mouseEnabled, setMouseEnabled] = useState(true);
-  const [viewDepthMap, setViewDepthMap] = useState(false);
-  const [depthMapOpacity, setDepthMapOpacity] = useState(0.5);
-  const [isLoading, setIsLoading] = useState(false);
+  const [config, dispatchConfig] = useReducer(configReducer, initialConfig);
+  const [imageData, setImageData] = React.useState(null);
+  const [depthData, setDepthData] = React.useState(null);
+  const [mouseEnabled, setMouseEnabled] = React.useState(true);
+  const [viewDepthMap, setViewDepthMap] = React.useState(false);
+  const [depthMapOpacity, setDepthMapOpacity] = React.useState(0.5);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState(null);
 
   const handleUpload = useCallback(async (file, imageUrl) => {
     setIsLoading(true);
-    setImageData({ file, url: imageUrl });
+    setError(null);
     try {
+      setImageData({ file, url: imageUrl });
       const depthMapData = await generateDepthMap(imageUrl);
+      if (!depthMapData?.depthArray || !depthMapData?.shape) {
+        throw new Error('Invalid depth map data');
+      }
       setDepthData(depthMapData);
-    } catch (error) {
-      console.error('Error generating depth map:', error);
+    } catch (err) {
+      console.error('Error during upload or depth map generation:', err);
+      setError('Failed to process the image. Please try again.');
+      setImageData(null);
+      setDepthData(null);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   return (
-    <DepthFlowContainer>
-      <FileUpload onUpload={handleUpload} />
+    <DepthFlowContainer role="main" aria-label="Depth Flow Application">
+      <FileUpload onUpload={handleUpload} aria-label="Upload image for depth map generation" />
+      {error && <ErrorMessage role="alert">{error}</ErrorMessage>}
       {imageData && depthData && (
         <CanvasContainer>
-          <StyledCanvas gl={{ powerPreference: "high-performance", antialias: true }}>
+          <StyledCanvas
+            gl={{ powerPreference: 'high-performance', antialias: true }}
+            aria-label="3D depth map visualization"
+          >
             <Suspense fallback={null}>
               <DepthFlowScene
                 config={config}
@@ -126,13 +127,14 @@ function DepthFlow() {
                 mouseEnabled={mouseEnabled}
                 viewDepthMap={viewDepthMap}
                 depthMapOpacity={depthMapOpacity}
+                onError={setError}
               />
             </Suspense>
           </StyledCanvas>
           <ControlsContainer>
             <Controls
               config={config}
-              setConfig={setConfig}
+              dispatchConfig={dispatchConfig}
               setMouseEnabled={setMouseEnabled}
               viewDepthMap={viewDepthMap}
               setViewDepthMap={setViewDepthMap}
@@ -143,12 +145,16 @@ function DepthFlow() {
         </CanvasContainer>
       )}
       {isLoading && (
-        <LoadingOverlay>
+        <LoadingOverlay aria-live="polite">
           Generating depth map...
         </LoadingOverlay>
       )}
     </DepthFlowContainer>
   );
 }
+
+DepthFlow.propTypes = {
+  // No props are passed to DepthFlow, but PropTypes can be added for future extensibility
+};
 
 export default DepthFlow;
