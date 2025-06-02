@@ -19,13 +19,13 @@
 ### Visual Example
 Below is a static image used and animated demonstrating the applications parallax effect:
 
-![Static Image](assets/imgMagic.jpeg)
-![Parallax Effect GIF](assets/imgMagic.gif)
+<img src="assets/imgMagic.jpeg" alt="Static Image" width="400" />
+<img src="assets/imgMagic.gif" alt="Parallax Effect GIF" width="400" />
 
 ### Video Showcase
 Watch the parallax effect in action:
 
-[![Image Depth Magic Demo](https://i9.ytimg.com/vi/AXZtKgwsfBc/mqdefault.jpg?sqp=CIz-9MEG-oaymwEmCMACELQB8quKqQMa8AEB-AH-BYAC4AOKAgwIABABGHggLih_MA8=&rs=AOn4CLCPnTezpu4Cxn5mGMwqKWM3iesc1w)](https://youtu.be/AXZtKgwsfBc)
+<iframe width="668" height="417" src="https://www.youtube.com/embed/v=AXZtKgwsfBc" title="Image Depth Magic Demo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 ## 📋 Prerequisites
 
