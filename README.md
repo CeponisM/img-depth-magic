@@ -25,7 +25,7 @@ Below is a static image used and animated demonstrating the applications paralla
 ### Video Showcase
 Watch the parallax effect in action:
 
-<iframe width="668" height="417" src="https://www.youtube-nocookie.com/embed/AXZtKgwsfBc?si=eEa4NPBrIweHRO5I" title="Image Depth Magic Demo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+https://github.com/user-attachments/assets/614951ce-8643-4364-a9f4-d318d2f27efe
 
 ## 📋 Prerequisites
 
