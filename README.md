@@ -37,7 +37,7 @@ https://github.com/user-attachments/assets/614951ce-8643-4364-a9f4-d318d2f27efe
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/ceponism/img-depth-magic.git
+git clone https://github.com/CeponisM/img-depth-magic.git
 cd img-depth-magic
 ```
 
@@ -166,7 +166,7 @@ Please follow the code style (ESLint configured via `react-app`) and include tes
 
 ## 📄 License
 
-This project is licensed under the MIT License for educational and non-profit use. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License for educational and non-profit use.
 
 ---
 
