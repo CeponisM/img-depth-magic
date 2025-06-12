@@ -5,6 +5,7 @@ import PropTypes from 'prop-types';
 import DepthFlowScene from './DepthFlowScene';
 import Controls from './Controls';
 import FileUpload from './FileUpload';
+import ServerStatus from './ServerStatus';
 import { generateDepthMap } from '../utils/depthMap';
 import { configReducer, initialConfig } from '../utils/configReducer';
 
@@ -88,8 +89,29 @@ function DepthFlow() {
   const [depthMapOpacity, setDepthMapOpacity] = React.useState(0.5);
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState(null);
+  const [isServerDown, setIsServerDown] = React.useState(false); // New state for server status
+
+  // Example: Check server status on mount or during upload
+  React.useEffect(() => {
+    // Simulate server status check (replace with actual API call)
+    const checkServerStatus = async () => {
+      try {
+        // Replace with actual server status check
+        // e.g., const response = await fetch('your-server-status-endpoint');
+        // if (!response.ok) setIsServerDown(true);
+        setIsServerDown(true); // Simulating server down for demo
+      } catch {
+        setIsServerDown(true);
+      }
+    };
+    checkServerStatus();
+  }, []);
 
   const handleUpload = useCallback(async (file, imageUrl) => {
+    if (isServerDown) {
+      setError('Cannot process upload: Server is currently unavailable.');
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -107,13 +129,14 @@ function DepthFlow() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isServerDown]);
 
   return (
     <DepthFlowContainer role="main" aria-label="Depth Flow Application">
       <FileUpload onUpload={handleUpload} aria-label="Upload image for depth map generation" />
-      {error && <ErrorMessage role="alert">{error}</ErrorMessage>}
-      {imageData && depthData && (
+      {isServerDown && <ServerStatus />}
+      {error && !isServerDown && <ErrorMessage role="alert">{error}</ErrorMessage>}
+      {imageData && depthData && !isServerDown && (
         <CanvasContainer>
           <StyledCanvas
             gl={{ powerPreference: 'high-performance', antialias: true }}
@@ -144,7 +167,7 @@ function DepthFlow() {
           </ControlsContainer>
         </CanvasContainer>
       )}
-      {isLoading && (
+      {isLoading && !isServerDown && (
         <LoadingOverlay aria-live="polite">
           Generating depth map...
         </LoadingOverlay>
